@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกมนับเลขแสนสนุก 1-10</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Mali:wght@400;600&display=swap');
+        
+        body {
+            font-family: 'Mali', cursive;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            width: 900px; 
+            max-width: 95%;
+            background: white;
+            padding: 50px;
+            border-radius: 30px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        h1 { color: #ff6b6b; font-size: 50px; margin-bottom: 10px; }
+        h2 { color: #4ecdc4; font-size: 36px; margin-top: 10px; }
+        p { font-size: 28px; color: #666; }
+
+        /* ช่องใส่ชื่อนักเรียน */
+        .name-input {
+            font-family: 'Mali', cursive;
+            font-size: 32px;
+            padding: 15px 25px;
+            border: 3px solid #4ecdc4;
+            border-radius: 20px;
+            width: 70%;
+            text-align: center;
+            margin-bottom: 30px;
+            outline: none;
+            color: #333;
+            transition: all 0.3s;
+        }
+        
+        .name-input:focus {
+            border-color: #ff6b6b;
+            box-shadow: 0 0 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .btn {
+            background-color: #ffd93d;
+            border: none;
+            padding: 20px 40px;
+            font-size: 32px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: 'Mali', cursive;
+            font-weight: 600;
+            box-shadow: 0 8px 0 #e5c336;
+            transition: transform 0.1s, box-shadow 0.1s, background-color 0.3s;
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translateY(8px);
+            box-shadow: 0 0 0 #e5c336;
+        }
+
+        .choice-btn {
+            background-color: #4ecdc4;
+            color: white;
+            width: 150px;
+            height: 150px;
+            font-size: 60px;
+            margin: 15px;
+            border-radius: 30px;
+            box-shadow: 0 10px 0 #3eb0a8;
+        }
+
+        .wrong-choice {
+            background-color: #e0e0e0 !important;
+            box-shadow: none !important;
+            color: #999 !important;
+            transform: none !important;
+            cursor: not-allowed !important;
+        }
+
+        #images-container {
+            font-size: 90px; 
+            min-height: 250px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            margin: 30px 0;
+            gap: 15px;
+        }
+
+        .hidden { display: none !important; }
+        
+        #progress {
+            font-size: 28px;
+            color: #888;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        #saving-status {
+            font-size: 24px;
+            margin-top: 20px;
+        }
+
+        .bouncing-text {
+            animation: bounce 1.5s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-20px); }
+            60% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="start-screen">
+        <h1>เกมนับเลขแสนสนุก</h1>
+        <p>มาฝึกนับเลข 1 ถึง 10 กันเถอะ!</p>
+        <input type="text" id="player-name" class="name-input" placeholder="ใส่ชื่อคนเก่งตรงนี้เลย ✏️">
+        <br>
+        <button class="btn" onclick="startGame()">เริ่มเล่นเลย 🚀</button>
+    </div>
+
+    <div id="game-screen" class="hidden">
+        <div id="progress">ข้อที่ 1 / 10</div>
+        <div id="images-container"></div>
+        <div id="choices-container">
+            </div>
+    </div>
+
+    <div id="result-screen" class="hidden">
+        <h1 id="praise-text" class="bouncing-text">เก่งมาก! เล่นจบแล้ว 🎉</h1>
+        <h2 id="final-score">ได้คะแนน: 0 / 10</h2>
+        <p id="saving-status" style="color: #ffaa00;">⏳ กำลังส่งข้อมูลสถิติเข้า Google Sheets ห้ามเพิ่งปิดจอนะครับ...</p>
+        <br>
+        <button id="home-btn" class="btn hidden" onclick="resetToHome()">หน้าแรก 🏠</button>
+    </div>
+</div>
+
+<script>
+    const GOOGLE_APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwJqXudBgP6RQDzkd02c3WKkskuRpfbDpklAjTCuQM8iAvgozb1BL2rnKffB7ZbykL5/exec";
+
+    const itemsPool = ['🍎', '🐇', '🍊', '🚗', '⭐', '🐶', '⚽', '🍓', '🎈', '🦋', '🐢', '🦖'];
+    
+    let rounds = [];
+    let currentRound = 0;
+    let score = 0;
+    let missedNumbers = []; 
+    let hasMissedThisRound = false;
+    let playerName = "";
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function startGame() {
+        const nameInput = document.getElementById('player-name').value.trim();
+        if (nameInput === "") {
+            alert("อย่าลืมใส่ชื่อคนเก่งก่อนเริ่มเกมน้า 🌟");
+            document.getElementById('player-name').focus();
+            return;
+        }
+        playerName = nameInput;
+
+        rounds = shuffleArray([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        currentRound = 0;
+        score = 0;
+        missedNumbers = [];
+        
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('result-screen').classList.add('hidden');
+        document.getElementById('home-btn').classList.add('hidden'); // ซ่อนปุ่มหน้าแรกไว้ก่อน
+        document.getElementById('game-screen').classList.remove('hidden');
+        
+        loadRound();
+    }
+
+    function loadRound() {
+        if (currentRound >= 10) {
+            endGame();
+            return;
+        }
+
+        hasMissedThisRound = false; 
+        const answer = rounds[currentRound];
+        const randomItem = itemsPool[Math.floor(Math.random() * itemsPool.length)];
+        
+        document.getElementById('progress').innerText = `ข้อที่ ${currentRound + 1} / 10`;
+
+        const imgContainer = document.getElementById('images-container');
+        imgContainer.innerHTML = '';
+        for (let i = 0; i < answer; i++) {
+            imgContainer.innerHTML += `<span>${randomItem}</span>`;
+        }
+
+        let choices = [answer];
+        while (choices.length < 3) {
+            let randomWrong = Math.floor(Math.random() * 10) + 1;
+            if (!choices.includes(randomWrong)) {
+                choices.push(randomWrong);
+            }
+        }
+        choices = shuffleArray(choices);
+
+        const choicesContainer = document.getElementById('choices-container');
+        choicesContainer.innerHTML = '';
+        choices.forEach(num => {
+            const btn = document.createElement('button');
+            btn.className = 'btn choice-btn';
+            btn.innerText = num;
+            btn.onclick = function() { checkAnswer(num, answer, this); };
+            choicesContainer.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(selected, correct, btnElement) {
+        if (selected === correct) {
+            confetti({
+                particleCount: 50,
+                spread: 60,
+                origin: { y: 0.8 },
+                colors: ['#ffd93d', '#4ecdc4', '#ff6b6b']
+            });
+
+            if (!hasMissedThisRound) {
+                score++;
+            }
+            currentRound++;
+            setTimeout(loadRound, 800); 
+        } else {
+            btnElement.classList.add('wrong-choice');
+            btnElement.disabled = true;
+
+            if (!hasMissedThisRound) {
+                missedNumbers.push(correct);
+                hasMissedThisRound = true; 
+            }
+        }
+    }
+
+    function endGame() {
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('result-screen').classList.remove('hidden');
+        
+        document.getElementById('praise-text').innerText = `สุดยอดเลย! น้อง${playerName} ทำสำเร็จแล้ว 🎉`;
+        document.getElementById('final-score').innerText = `ได้คะแนน: ${score} / 10`;
+        document.getElementById('saving-status').innerText = "⏳ กำลังส่งข้อมูลสถิติเข้า Google Sheets ...";
+        document.getElementById('saving-status').style.color = "#ffaa00";
+
+        triggerGrandPraise(); 
+        saveDataToGoogleSheets();
+    }
+
+    function triggerGrandPraise() {
+        var duration = 4 * 1000;
+        var end = Date.now() + duration;
+
+        (function frame() {
+            confetti({
+                particleCount: 6,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0 },
+                colors: ['#ff6b6b', '#4ecdc4', '#ffd93d', '#a8e6cf', '#dcedc1']
+            });
+            confetti({
+                particleCount: 6,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1 },
+                colors: ['#ff6b6b', '#4ecdc4', '#ffd93d', '#a8e6cf', '#dcedc1']
+            });
+
+            if (Date.now() < end) {
+                requestAnimationFrame(frame);
+            }
+        }());
+    }
+
+    function saveDataToGoogleSheets() {
+        const data = {
+            name: playerName, 
+            score: score,
+            missed: missedNumbers
+        };
+
+        fetch(GOOGLE_APP_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors', 
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        }).then(() => {
+            // เมื่อส่งสำเร็จแล้ว: เปลี่ยนข้อความและแสดงปุ่มหน้าแรกให้คลิกได้
+            document.getElementById('saving-status').innerText = "บันทึกข้อมูลเรียบร้อยแล้ว! 🌟";
+            document.getElementById('saving-status').style.color = "#4ecdc4";
+            document.getElementById('home-btn').classList.remove('hidden'); // โชว์ปุ่มให้เล่นรอบถัดไปได้ชัวร์ๆ
+        }).catch(error => {
+            document.getElementById('saving-status').innerText = "ระบบบันทึกติดขัด โปรดตรวจสอบอินเทอร์เน็ต";
+            document.getElementById('saving-status').style.color = "#ff6b6b";
+            document.getElementById('home-btn').classList.remove('hidden'); // ถึงผิดพลาดก็ยอมให้กดใหม่เพื่อเริ่มรอบอื่นได้
+            console.error('Error:', error);
+        });
+    }
+
+    function resetToHome() {
+        document.getElementById('player-name').value = ''; 
+        document.getElementById('result-screen').classList.add('hidden');
+        document.getElementById('start-screen').classList.remove('hidden');
+    }
+</script>
+
+</body>
+</html>
