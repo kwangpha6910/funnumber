@@ -81,14 +81,22 @@
             margin: 15px;
             border-radius: 30px;
             box-shadow: 0 10px 0 #3eb0a8;
+            transition: all 0.3s;
         }
 
-        .wrong-choice {
-            background-color: #e0e0e0 !important;
-            box-shadow: none !important;
-            color: #999 !important;
-            transform: none !important;
-            cursor: not-allowed !important;
+        /* ปุ่มเวลาตอบถูก (เฉลย) */
+        .correct-answer {
+            background-color: #ffd93d !important;
+            box-shadow: 0 10px 0 #e5c336 !important;
+            color: #333 !important;
+            transform: scale(1.1);
+        }
+
+        /* ปุ่มเวลาคลิกตอบผิด */
+        .wrong-answer {
+            background-color: #ff6b6b !important;
+            box-shadow: 0 10px 0 #cc5555 !important;
+            transform: scale(0.9);
         }
 
         #images-container {
@@ -141,8 +149,7 @@
     <div id="game-screen" class="hidden">
         <div id="progress">ข้อที่ 1 / 10</div>
         <div id="images-container"></div>
-        <div id="choices-container">
-            </div>
+        <div id="choices-container"></div>
     </div>
 
     <div id="result-screen" class="hidden">
@@ -163,7 +170,6 @@
     let currentRound = 0;
     let score = 0;
     let missedNumbers = []; 
-    let hasMissedThisRound = false;
     let playerName = "";
 
     function shuffleArray(array) {
@@ -190,7 +196,7 @@
         
         document.getElementById('start-screen').classList.add('hidden');
         document.getElementById('result-screen').classList.add('hidden');
-        document.getElementById('home-btn').classList.add('hidden'); // ซ่อนปุ่มหน้าแรกไว้ก่อน
+        document.getElementById('home-btn').classList.add('hidden');
         document.getElementById('game-screen').classList.remove('hidden');
         
         loadRound();
@@ -202,7 +208,6 @@
             return;
         }
 
-        hasMissedThisRound = false; 
         const answer = rounds[currentRound];
         const randomItem = itemsPool[Math.floor(Math.random() * itemsPool.length)];
         
@@ -229,13 +234,20 @@
             const btn = document.createElement('button');
             btn.className = 'btn choice-btn';
             btn.innerText = num;
+            btn.dataset.value = num; // เก็บค่าตัวเลขเอาไว้ใช้ตรวจสอบตอนเฉลย
             btn.onclick = function() { checkAnswer(num, answer, this); };
             choicesContainer.appendChild(btn);
         });
     }
 
     function checkAnswer(selected, correct, btnElement) {
+        // ล็อกทุกปุ่มไม่ให้กดซ้ำระหว่างดูผลลัพธ์
+        const allChoiceBtns = document.querySelectorAll('.choice-btn');
+        allChoiceBtns.forEach(btn => btn.disabled = true);
+
         if (selected === correct) {
+            // กรณีตอบถูก
+            btnElement.classList.add('correct-answer');
             confetti({
                 particleCount: 50,
                 spread: 60,
@@ -243,19 +255,25 @@
                 colors: ['#ffd93d', '#4ecdc4', '#ff6b6b']
             });
 
-            if (!hasMissedThisRound) {
-                score++;
-            }
+            score++;
             currentRound++;
-            setTimeout(loadRound, 800); 
+            // เปลี่ยนข้อไวขึ้นหน่อยถ้าตอบถูก (หน่วงเวลา 1 วินาที)
+            setTimeout(loadRound, 1000); 
         } else {
-            btnElement.classList.add('wrong-choice');
-            btnElement.disabled = true;
+            // กรณีตอบผิด
+            missedNumbers.push(correct);
+            btnElement.classList.add('wrong-answer');
+            
+            // ค้นหาปุ่มที่ถูกต้องเพื่อเฉลย
+            allChoiceBtns.forEach(btn => {
+                if (parseInt(btn.dataset.value) === correct) {
+                    btn.classList.add('correct-answer');
+                }
+            });
 
-            if (!hasMissedThisRound) {
-                missedNumbers.push(correct);
-                hasMissedThisRound = true; 
-            }
+            currentRound++;
+            // หน่วงเวลา 2 วินาที ให้เด็กๆ เห็นว่าข้อที่ถูกคือเลขอะไร
+            setTimeout(loadRound, 2000); 
         }
     }
 
@@ -313,14 +331,13 @@
             },
             body: JSON.stringify(data)
         }).then(() => {
-            // เมื่อส่งสำเร็จแล้ว: เปลี่ยนข้อความและแสดงปุ่มหน้าแรกให้คลิกได้
             document.getElementById('saving-status').innerText = "บันทึกข้อมูลเรียบร้อยแล้ว! 🌟";
             document.getElementById('saving-status').style.color = "#4ecdc4";
-            document.getElementById('home-btn').classList.remove('hidden'); // โชว์ปุ่มให้เล่นรอบถัดไปได้ชัวร์ๆ
+            document.getElementById('home-btn').classList.remove('hidden');
         }).catch(error => {
             document.getElementById('saving-status').innerText = "ระบบบันทึกติดขัด โปรดตรวจสอบอินเทอร์เน็ต";
             document.getElementById('saving-status').style.color = "#ff6b6b";
-            document.getElementById('home-btn').classList.remove('hidden'); // ถึงผิดพลาดก็ยอมให้กดใหม่เพื่อเริ่มรอบอื่นได้
+            document.getElementById('home-btn').classList.remove('hidden');
             console.error('Error:', error);
         });
     }
